@@ -1,0 +1,34 @@
+{
+  "name": "gatekeeper",
+  "version": "0.1.0",
+  "description": "Protection against sandwich attacks using Uniswap V4 and EigenLayer AVS",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy/deploy.ts",
+    "lint": "solhint 'contracts/**/*.sol' && eslint . --ext .ts",
+    "format": "prettier --write 'contracts/**/*.sol' '**/*.ts' '**/*.json'"
+  },
+  "dependencies": {
+    "@eigenlayer/avs-client": "latest",
+    "@othentic/avs-framework": "latest",
+    "@uniswap/v4-core": "latest",
+    "@uniswap/v4-periphery": "latest",
+    "ethers": "^6.0.0",
+    "hardhat": "^2.19.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "dotenv": "^16.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "prettier-plugin-solidity": "^1.0.0",
+    "solhint": "^4.0.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^5.0.0"
+  }
+}
