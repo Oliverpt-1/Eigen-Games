@@ -2,7 +2,7 @@
 
 GateKeeper is a decentralized solution designed to protect users against sandwich attacks in DeFi transactions, leveraging Uniswap V4's hooks system and EigenLayer's AVS (Actively Validated Service) framework.
 
-Wattup dog
+Wattup duuuuuuuude
 
 ## Overview
 
