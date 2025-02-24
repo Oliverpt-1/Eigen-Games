@@ -4,7 +4,6 @@ GateKeeper is a decentralized solution designed to protect users against sandwic
 
 ## Overview
 
-Added this.
 
 Sandwich attacks are a common MEV (Maximal Extractable Value) exploit where attackers front-run and back-run user transactions to profit from price movements. GateKeeper provides a protective layer that:
 
