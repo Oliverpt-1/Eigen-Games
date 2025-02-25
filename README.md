@@ -2,7 +2,6 @@
 
 GateKeeper is a decentralized solution designed to protect users against sandwich attacks in DeFi transactions, leveraging Uniswap V4's hooks system and EigenLayer's AVS (Actively Validated Service) framework.
 
-I added this here
 ## Overview 
 
 Sandwich attacks are a common MEV (Maximal Extractable Value) exploit where attackers front-run and back-run user transactions to profit from price movements. GateKeeper provides a protective layer that:
