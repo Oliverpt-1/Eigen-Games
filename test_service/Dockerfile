@@ -22,6 +22,6 @@ RUN npm install @uniswap/v4-core
 COPY . .
 
 # Expose the desired port (e.g., 5000)
-EXPOSE 4000
+EXPOSE 5000
 
 CMD ["npm", "start"]
