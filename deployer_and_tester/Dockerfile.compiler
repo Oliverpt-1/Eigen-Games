@@ -1,0 +1,33 @@
+# Use Node 18 on Debian Bullseye as base image
+FROM node:18-bullseye
+
+# Set the working directory
+WORKDIR /app
+
+# Install solc, git, and curl (needed for Foundry installation)
+RUN apt-get update && apt-get install -y solc git curl
+
+# Install Foundry using Foundryup
+RUN curl -L https://foundry.paradigm.xyz | bash && \
+    /root/.foundry/bin/foundryup
+
+# Add Foundry to PATH
+ENV PATH="/root/.foundry/bin:${PATH}"
+
+# Install Uniswap V4 core dependency
+RUN mkdir -p /app/lib && \
+    cd /app/lib && \
+    git clone https://github.com/Uniswap/v4-core.git && \
+    cd v4-core && \
+    git submodule update --init --recursive && \
+    forge install
+
+# Create a script to compile contracts
+RUN echo '#!/bin/bash\n\
+cd /app\n\
+forge build --optimize\n\
+' > /usr/local/bin/compile.sh && \
+chmod +x /usr/local/bin/compile.sh
+
+# Set the entrypoint to the compile script
+ENTRYPOINT ["/usr/local/bin/compile.sh"] 

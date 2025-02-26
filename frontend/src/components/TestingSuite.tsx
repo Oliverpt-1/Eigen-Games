@@ -134,23 +134,7 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
     setCompilationError(null);
     
     try {
-      // Step 1: Compile the code using the backend server
-      const compileResponse = await fetch('http://localhost:3000/api/compile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code: contractCode }),
-      });
-
-      const compileData = await compileResponse.json();
-      
-      if (!compileData.success) {
-        setCompilationError('Compilation failed: ' + (compileData.error || 'Unknown error'));
-        return;
-      }
-      
-      // Step 2: Run tests with the backend server
+      // Call the test endpoint directly
       const testResponse = await fetch('http://localhost:3000/api/test', {
         method: 'POST',
         headers: {

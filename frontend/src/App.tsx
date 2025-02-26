@@ -72,8 +72,8 @@ function App() {
     setError(null);
     
     try {
-      // First compile the code using the backend server
-      const compileResponse = await fetch('http://localhost:3000/api/compile', {
+      // Call the compile-and-deploy endpoint
+      const response = await fetch('http://localhost:3000/api/compile-and-deploy', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,19 +81,15 @@ function App() {
         body: JSON.stringify({ code }),
       });
 
-      const compileData = await compileResponse.json();
+      const data = await response.json();
       
-      if (!compileData.success) {
-        setError(`Compilation failed: ${compileData.error || 'Unknown error'}`);
+      if (!data.success) {
+        setError(`Deployment failed: ${data.error || 'Unknown error'}`);
         return;
       }
       
-      // For now, just simulate a successful deployment
-      // In a real implementation, you would call the actual deployment endpoint
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Set a mock deployed address
-      setDeployedAddress('0x1234...5678');
+      // Set the deployed address from the response
+      setDeployedAddress(data.address);
     } catch (error) {
       console.error('Deployment failed:', error);
       setError(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
