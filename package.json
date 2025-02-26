@@ -15,16 +15,18 @@
     "marketplace:start": "next start"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.10.0",
     "@uniswap/v4-core": "latest",
     "@uniswap/v4-periphery": "latest",
-    "ethers": "^6.0.0",
+    "body-parser": "^1.20.3",
+    "ethers": "^5.7.2",
+    "express": "^4.21.2",
     "hardhat": "^2.19.0",
     "next": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "tailwindcss": "^3.4.0",
-    "@anthropic-ai/sdk": "^0.10.0",
-    "rig": "^0.1.0"
+    "rig": "^0.1.0",
+    "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
@@ -34,7 +36,7 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "autoprefixer": "^10.4.0",
-    "dotenv": "^16.0.0",
+    "dotenv": "^16.4.7",
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.0.0",
     "postcss": "^8.4.0",
@@ -43,5 +45,12 @@
     "solhint": "^4.0.0",
     "ts-node": "^10.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
