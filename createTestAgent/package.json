@@ -1,0 +1,22 @@
+{
+  "name": "create-test-agent",
+  "version": "0.1.0",
+  "description": "Agent built on Hyperbolic to create Foundry Test Suites",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.10.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1"
+  }
+} 

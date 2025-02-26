@@ -28,8 +28,6 @@ function App() {
   const [code, setCode] = useState('');
   const [report, setReport] = useState<AuditReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
 
   const handleCodeChange = (newCode: string) => {
     setCode(newCode);
@@ -59,42 +57,6 @@ function App() {
       case 'vulnerable': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
       case 'malicious': return 'bg-red-50 text-red-700 border-red-200';
       default: return '';
-    }
-  };
-
-  const handleDeploy = async () => {
-    if (!code.trim()) {
-      setError('Please enter contract code before deploying');
-      return;
-    }
-
-    setIsDeploying(true);
-    setError(null);
-    
-    try {
-      // Call the compile-and-deploy endpoint
-      const response = await fetch('http://localhost:3000/api/compile-and-deploy', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        setError(`Deployment failed: ${data.error || 'Unknown error'}`);
-        return;
-      }
-      
-      // Set the deployed address from the response
-      setDeployedAddress(data.address);
-    } catch (error) {
-      console.error('Deployment failed:', error);
-      setError(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsDeploying(false);
     }
   };
 
@@ -205,27 +167,10 @@ function App() {
           <AIAgent />
 
           <div className="flex justify-end mt-8">
-            {deployedAddress && (
-              <div className="mr-4 flex items-center">
-                <span className="text-green-600 font-medium">Deployed at: </span>
-                <code className="ml-2 px-3 py-1 bg-green-50 rounded-lg text-green-800 font-mono text-sm">
-                  {deployedAddress}
-                </code>
-              </div>
-            )}
             <button
-              onClick={handleDeploy}
-              disabled={isDeploying}
-              className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg"
             >
-              {isDeploying ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Deploying...
-                </>
-              ) : (
-                'Deploy Contract'
-              )}
+              Deploy Contract
             </button>
           </div>
         </div>
