@@ -21,7 +21,6 @@ RUN npm install @uniswap/v4-core
 # Copy the rest of your test service code (including your Foundry project folder)
 COPY . .
 
-# Expose the desired port (e.g., 5000)
 EXPOSE 4000
 
 CMD ["npm", "start"]
