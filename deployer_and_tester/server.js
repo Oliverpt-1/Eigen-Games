@@ -1,15 +1,23 @@
-// hook_deployer/solidity_service.js
+// Consolidated server for compiling, testing, and deploying Solidity contracts
+require('dotenv').config();
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
+const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
+const deployContract = require('./deploy');
 
+// Create Express app
 const app = express();
 
-// Middleware
-app.use(cors());
+// Add middleware
+app.use(cors({
+  origin: 'http://localhost:5173', // Vite's default port
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
+app.use(express.json());
 app.use(bodyParser.json());
 
 // Create temp directory if it doesn't exist
@@ -17,6 +25,11 @@ const tempDir = path.join(__dirname, 'temp');
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
+
+// Simple endpoint to check if server is running
+app.get('/', (req, res) => {
+  res.json({ message: 'Solidity compiler, tester, and deployer service is running' });
+});
 
 // Endpoint to compile Solidity code
 app.post('/api/compile', (req, res) => {
@@ -76,7 +89,7 @@ app.post('/api/compile', (req, res) => {
 
 // Endpoint to run tests
 app.post('/api/test', (req, res) => {
-  const { code, testCode, compiledBytecode } = req.body;
+  const { code, testCode } = req.body;
   
   if (!code) {
     return res.status(400).json({ error: 'No code provided' });
@@ -109,14 +122,6 @@ contract ContractTest is Test {
     path.join(workDir, 'test', 'Contract.t.sol'), 
     testCode || defaultTest
   );
-  
-  // If compiledBytecode is provided, write it to a file for the test container to use
-  if (compiledBytecode) {
-    fs.writeFileSync(
-      path.join(workDir, 'bytecode.json'),
-      JSON.stringify({ bytecode: compiledBytecode })
-    );
-  }
   
   // Run the testing container
   exec(`docker run --rm -v ${workDir}:/app tester-image`, (error, stdout, stderr) => {
@@ -169,7 +174,72 @@ function parseTestResults(output) {
   return results;
 }
 
+// Endpoint to deploy a contract
+app.post('/api/deploy', async (req, res) => {
+  const { abi, bytecode } = req.body;
+  if (!abi || !bytecode) {
+    return res.status(400).json({ error: 'Missing ABI or bytecode' });
+  }
+  
+  try {
+    const deployedAddress = await deployContract(abi, bytecode);
+    res.json({ success: true, address: deployedAddress });
+  } catch (error) {
+    console.error('Deployment error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Endpoint to compile and deploy in one step
+app.post('/api/compile-and-deploy', (req, res) => {
+  const { code } = req.body;
+  
+  if (!code) {
+    return res.status(400).json({ error: 'No code provided' });
+  }
+  
+  // Create temp directory for this request
+  const id = Date.now().toString();
+  const workDir = path.join(tempDir, id);
+  fs.mkdirSync(workDir, { recursive: true });
+  fs.mkdirSync(path.join(workDir, 'src'), { recursive: true });
+  
+  // Write the code to a file
+  fs.writeFileSync(path.join(workDir, 'src', 'Contract.sol'), code);
+  
+  // Run the compilation container
+  exec(`docker run --rm -v ${workDir}:/app compiler-image`, async (error, stdout, stderr) => {
+    if (error) {
+      return res.json({
+        success: false,
+        error: stderr || error.message
+      });
+    }
+    
+    try {
+      // Read the compiled artifact (contains bytecode and ABI)
+      const artifactPath = path.join(workDir, 'out', 'Contract.sol', 'Contract.json');
+      const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+      
+      // Deploy using your existing deploy function
+      const deployedAddress = await deployContract(artifact.abi, artifact.bytecode);
+      
+      res.json({
+        success: true,
+        address: deployedAddress,
+        message: 'Contract compiled and deployed successfully'
+      });
+    } catch (deployError) {
+      res.json({
+        success: false,
+        error: deployError.message
+      });
+    }
+  });
+});
+
+// Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Solidity service running on port ${PORT}`);
+  console.log(`Consolidated server running on port ${PORT}`);
 }); 
