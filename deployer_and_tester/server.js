@@ -89,24 +89,33 @@ app.post('/api/compile', (req, res) => {
 
 // Endpoint to run tests
 app.post('/api/test', (req, res) => {
+  console.log('📝 Received test request');
   const { code, testCode } = req.body;
   
   if (!code) {
+    console.error('❌ No code provided');
     return res.status(400).json({ error: 'No code provided' });
   }
   
   // Create a unique ID for this request
   const id = Date.now().toString();
   const workDir = path.join(tempDir, id);
-  fs.mkdirSync(workDir, { recursive: true });
-  fs.mkdirSync(path.join(workDir, 'src'), { recursive: true });
-  fs.mkdirSync(path.join(workDir, 'test'), { recursive: true });
+  console.log(`📁 Creating work directory: ${workDir}`);
   
-  // Write the contract code
-  fs.writeFileSync(path.join(workDir, 'src', 'Contract.sol'), code);
-  
-  // Write the test code or use a default test
-  const defaultTest = `// SPDX-License-Identifier: MIT
+  try {
+    fs.mkdirSync(workDir, { recursive: true });
+    fs.mkdirSync(path.join(workDir, 'src'), { recursive: true });
+    fs.mkdirSync(path.join(workDir, 'test'), { recursive: true });
+    
+    // Write the contract code
+    const contractPath = path.join(workDir, 'src', 'Contract.sol');
+    console.log(`📝 Writing contract to: ${contractPath}`);
+    fs.writeFileSync(contractPath, code);
+    console.log('Contract code:');
+    console.log(code);
+    
+    // Write the test code or use a default test
+    const defaultTest = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
@@ -117,35 +126,77 @@ contract ContractTest is Test {
         assertTrue(true);
     }
 }`;
-  
-  fs.writeFileSync(
-    path.join(workDir, 'test', 'Contract.t.sol'), 
-    testCode || defaultTest
-  );
-  
-  // Run the testing container
-  exec(`docker run --rm -v ${workDir}:/app tester-image`, (error, stdout, stderr) => {
-    if (error && !stdout.includes('[PASS]')) {
-      return res.json({
-        success: false,
-        error: stderr || error.message
+    
+    const testPath = path.join(workDir, 'test', 'Contract.t.sol');
+    console.log(`📝 Writing test to: ${testPath}`);
+    fs.writeFileSync(testPath, testCode || defaultTest);
+    console.log('Test code:');
+    console.log(testCode || defaultTest);
+
+    // Copy foundry.toml to work directory
+    const foundryConfig = path.join(__dirname, 'foundry.toml');
+    const workDirConfig = path.join(workDir, 'foundry.toml');
+    console.log(`📝 Copying foundry.toml from ${foundryConfig} to ${workDirConfig}`);
+    fs.copyFileSync(foundryConfig, workDirConfig);
+    
+    // Run the testing container
+    const dockerCmd = `docker run --rm -v ${workDir}:/app tester-image`;
+    console.log(`🐳 Running Docker command: ${dockerCmd}`);
+    
+    exec(dockerCmd, (error, stdout, stderr) => {
+      console.log('🔍 Docker execution completed');
+      console.log('stdout:', stdout);
+      console.log('stderr:', stderr);
+      
+      if (error && !stdout.includes('[PASS]')) {
+        console.error('❌ Test execution failed:', error);
+        console.error('Error details:', stderr);
+        return res.json({
+          success: false,
+          error: stderr || error.message,
+          details: {
+            stdout,
+            stderr,
+            workDir,
+            contractPath,
+            testPath
+          }
+        });
+      }
+      
+      // Parse test results
+      console.log('✅ Parsing test results');
+      const testResults = parseTestResults(stdout);
+      
+      // Return test results
+      res.json({
+        success: true,
+        results: testResults,
+        details: {
+          stdout,
+          stderr,
+          workDir,
+          contractPath,
+          testPath
+        }
       });
-    }
-    
-    // Parse test results
-    const testResults = parseTestResults(stdout);
-    
-    // Return test results
-    res.json({
-      success: true,
-      results: testResults
     });
-  });
+  } catch (error) {
+    console.error('❌ Server error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: {
+        workDir,
+        error: error.stack
+      }
+    });
+  }
 });
 
 // Function to parse test results
 function parseTestResults(output) {
-  // Simple parsing logic
+  console.log('🔍 Parsing test output:', output);
   const lines = output.split('\n');
   const results = [];
   
@@ -158,12 +209,14 @@ function parseTestResults(output) {
   for (const line of lines) {
     if (line.includes('[PASS]')) {
       const testName = line.split('[PASS]')[1].trim();
+      console.log(`✅ Passed test: ${testName}`);
       currentSuite.tests.push({
         name: testName,
         status: 'success'
       });
     } else if (line.includes('[FAIL]')) {
       const testName = line.split('[FAIL]')[1].trim();
+      console.log(`❌ Failed test: ${testName}`);
       currentSuite.tests.push({
         name: testName,
         status: 'failure'
@@ -241,5 +294,5 @@ app.post('/api/compile-and-deploy', (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Consolidated server running on port ${PORT}`);
+  console.log(`🚀 Consolidated server running on port ${PORT}`);
 }); 

@@ -65,6 +65,19 @@ interface TestSuite {
   tests: TestResult[];
 }
 
+interface TestResponse {
+  success: boolean;
+  error?: string;
+  results?: TestSuite[];
+  details?: {
+    stdout: string;
+    stderr: string;
+    workDir: string;
+    contractPath: string;
+    testPath: string;
+  };
+}
+
 interface TestCategory {
   id: string;
   name: string;
@@ -78,6 +91,7 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customTestCode, setCustomTestCode] = useState(defaultFoundryTests);
   const [compilationError, setCompilationError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<TestResponse['details'] | null>(null);
   const [testCategories, setTestCategories] = useState<TestCategory[]>([
     {
       id: 'initialization',
@@ -132,8 +146,11 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
   const runTests = async () => {
     setIsRunning(true);
     setCompilationError(null);
+    setDebugInfo(null);
     
     try {
+      console.log('Running tests with code:', contractCode);
+      
       // Call the test endpoint directly
       const testResponse = await fetch('http://localhost:3000/api/test', {
         method: 'POST',
@@ -146,15 +163,26 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
         }),
       });
 
-      const testData = await testResponse.json();
+      const testData: TestResponse = await testResponse.json();
+      console.log('Test response:', testData);
       
       if (!testData.success) {
-        setCompilationError('Test execution failed: ' + (testData.error || 'Unknown error'));
+        setCompilationError(testData.error || 'Unknown error');
+        if (testData.details) {
+          setDebugInfo(testData.details);
+        }
         return;
       }
       
       // Use the test results returned from the backend
-      setTestResults(testData.results);
+      if (testData.results) {
+        setTestResults(testData.results);
+      }
+      
+      // Store debug info even on success
+      if (testData.details) {
+        setDebugInfo(testData.details);
+      }
     } catch (error) {
       console.error('Test execution failed:', error);
       setCompilationError(error instanceof Error ? error.message : 'Unknown error');
@@ -290,9 +318,47 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
       </div>
 
       {compilationError && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-          <h4 className="font-medium mb-1">Error:</h4>
-          <pre className="text-sm whitespace-pre-wrap">{compilationError}</pre>
+        <div className="mb-4 space-y-4">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+            <h4 className="font-medium mb-1">Error:</h4>
+            <pre className="text-sm whitespace-pre-wrap">{compilationError}</pre>
+          </div>
+          
+          {debugInfo && (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+              <h4 className="font-medium mb-2 text-gray-900">Debug Information:</h4>
+              <div className="space-y-2">
+                <div>
+                  <span className="font-medium">Working Directory: </span>
+                  <code className="text-sm bg-gray-100 px-1 py-0.5 rounded">{debugInfo.workDir}</code>
+                </div>
+                <div>
+                  <span className="font-medium">Contract Path: </span>
+                  <code className="text-sm bg-gray-100 px-1 py-0.5 rounded">{debugInfo.contractPath}</code>
+                </div>
+                <div>
+                  <span className="font-medium">Test Path: </span>
+                  <code className="text-sm bg-gray-100 px-1 py-0.5 rounded">{debugInfo.testPath}</code>
+                </div>
+                {debugInfo.stdout && (
+                  <div>
+                    <span className="font-medium">Standard Output:</span>
+                    <pre className="mt-1 p-2 bg-black text-green-400 rounded-lg text-sm overflow-x-auto">
+                      {debugInfo.stdout}
+                    </pre>
+                  </div>
+                )}
+                {debugInfo.stderr && (
+                  <div>
+                    <span className="font-medium">Standard Error:</span>
+                    <pre className="mt-1 p-2 bg-black text-red-400 rounded-lg text-sm overflow-x-auto">
+                      {debugInfo.stderr}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
