@@ -1,5 +1,5 @@
 # Use Node 18 on Debian Bullseye as base image
-FROM --platform=$BUILDPLATFORM node:18-bullseye
+FROM node:18-bullseye
 
 # Set the working directory
 WORKDIR /app
@@ -14,8 +14,8 @@ RUN pip3 install solc-select
 RUN curl -L https://foundry.paradigm.xyz | bash && \
     /root/.foundry/bin/foundryup
 
-# Add Foundry and local binaries to PATH
-ENV PATH="/root/.foundry/bin:/root/.local/bin:${PATH}"
+# Add Foundry to PATH
+ENV PATH="/root/.foundry/bin:${PATH}"
 
 # Install Uniswap V4 core dependency
 RUN mkdir -p /app/lib && \
@@ -39,8 +39,8 @@ solc-select use $SOLC_VERSION\n\
 # Set Foundry to use the installed solc version\n\
 export FOUNDRY_SOLC=$(which solc)\n\
 \n\
-# Run the compilation with explicit solc version\n\
-FOUNDRY_SOLC_VERSION=$SOLC_VERSION forge build --optimize\n\
+# Run the compilation\n\
+forge build --optimize\n\
 ' > /usr/local/bin/compile.sh && \
 chmod +x /usr/local/bin/compile.sh
 
