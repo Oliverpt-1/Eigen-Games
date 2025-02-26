@@ -1,18 +1,21 @@
-# Use Node 18 on Debian Bullseye as base image
-FROM node:18-bullseye
+# Use Ubuntu as base image with explicit platform
+FROM --platform=linux/arm64 ubuntu:22.04
+
+# Avoid prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y curl git build-essential nodejs npm && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
 
-# Install git, curl, and python3 (needed for solc-select)
-RUN apt-get update && apt-get install -y git curl python3 python3-pip
-
-# Install solc-select for managing multiple solc versions
-RUN pip3 install solc-select
-
-# Install Foundry using Foundryup
+# Install Foundry
 RUN curl -L https://foundry.paradigm.xyz | bash && \
-    /root/.foundry/bin/foundryup
+    ~/.foundry/bin/foundryup
 
 # Add Foundry to PATH
 ENV PATH="/root/.foundry/bin:${PATH}"
@@ -25,21 +28,9 @@ RUN mkdir -p /app/lib && \
     git submodule update --init --recursive && \
     forge install
 
-# Create a script to compile contracts that first installs the required solc version
+# Create a simple compile script
 RUN echo '#!/bin/bash\n\
 cd /app\n\
-\n\
-# Extract Solidity version from the contract\n\
-SOLC_VERSION=$(grep "pragma solidity" src/Contract.sol | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")\n\
-\n\
-# Install the required version\n\
-solc-select install $SOLC_VERSION\n\
-solc-select use $SOLC_VERSION\n\
-\n\
-# Set Foundry to use the installed solc version\n\
-export FOUNDRY_SOLC=$(which solc)\n\
-\n\
-# Run the compilation\n\
 forge build --optimize\n\
 ' > /usr/local/bin/compile.sh && \
 chmod +x /usr/local/bin/compile.sh

@@ -148,7 +148,25 @@ contract ContractTest is Test {
       console.log('stdout:', stdout);
       console.log('stderr:', stderr);
       
-      if (error && !stdout.includes('[PASS]')) {
+      // Always try to parse test results, even if there's an error
+      // because Forge might output test failures but still exit with non-zero
+      const testResults = parseTestResults(stdout);
+      
+      // If we have test results, consider it a success even if there are failing tests
+      if (testResults.length > 0 && testResults[0].tests.length > 0) {
+        res.json({
+          success: true,
+          results: testResults,
+          details: {
+            stdout,
+            stderr,
+            workDir,
+            contractPath,
+            testPath
+          }
+        });
+      } else if (error) {
+        // Only consider it an error if we couldn't parse any test results
         console.error('❌ Test execution failed:', error);
         console.error('Error details:', stderr);
         return res.json({
@@ -163,23 +181,6 @@ contract ContractTest is Test {
           }
         });
       }
-      
-      // Parse test results
-      console.log('✅ Parsing test results');
-      const testResults = parseTestResults(stdout);
-      
-      // Return test results
-      res.json({
-        success: true,
-        results: testResults,
-        details: {
-          stdout,
-          stderr,
-          workDir,
-          contractPath,
-          testPath
-        }
-      });
     });
   } catch (error) {
     console.error('❌ Server error:', error);
@@ -206,22 +207,58 @@ function parseTestResults(output) {
   };
   results.push(currentSuite);
   
+  let currentTest = null;
+  let collectingTrace = false;
+  let trace = [];
+  
   for (const line of lines) {
-    if (line.includes('[PASS]')) {
-      const testName = line.split('[PASS]')[1].trim();
-      console.log(`✅ Passed test: ${testName}`);
-      currentSuite.tests.push({
-        name: testName,
-        status: 'success'
-      });
-    } else if (line.includes('[FAIL]')) {
-      const testName = line.split('[FAIL]')[1].trim();
-      console.log(`❌ Failed test: ${testName}`);
-      currentSuite.tests.push({
-        name: testName,
-        status: 'failure'
-      });
+    // Skip empty lines
+    if (!line.trim()) continue;
+
+    // Detect test running
+    if (line.includes('Running')) {
+      console.log('📋 Found test suite:', line);
+      currentSuite.name = line.trim();
     }
+    // Detect test result
+    else if (line.includes('[PASS]') || line.includes('[FAIL]')) {
+      if (collectingTrace && currentTest) {
+        currentTest.trace = trace.join('\n');
+        trace = [];
+        collectingTrace = false;
+      }
+
+      const status = line.includes('[PASS]') ? 'success' : 'failure';
+      const testName = line.split(status === 'success' ? '[PASS]' : '[FAIL]')[1].trim();
+      
+      // Extract gas information if present
+      const gasMatch = line.match(/\((\d+) gas\)/);
+      const gasUsed = gasMatch ? parseInt(gasMatch[1]) : undefined;
+      
+      currentTest = {
+        name: testName,
+        status: status,
+        gasUsed: gasUsed
+      };
+      
+      console.log(`${status === 'success' ? '✅' : '❌'} Test: ${testName} ${gasUsed ? `(${gasUsed} gas)` : ''}`);
+      currentSuite.tests.push(currentTest);
+      collectingTrace = true;
+    }
+    // Collect error messages and traces
+    else if (collectingTrace && currentTest && line.trim()) {
+      trace.push(line.trim());
+    }
+    // Detect overall test summary
+    else if (line.includes('Test result:')) {
+      console.log('📊 Test summary:', line);
+      currentSuite.summary = line.trim();
+    }
+  }
+  
+  // Add final trace if we were collecting one
+  if (collectingTrace && currentTest && trace.length > 0) {
+    currentTest.trace = trace.join('\n');
   }
   
   return results;
