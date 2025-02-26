@@ -77,6 +77,7 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
   const [testResults, setTestResults] = useState<TestSuite[]>([]);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customTestCode, setCustomTestCode] = useState(defaultFoundryTests);
+  const [compilationError, setCompilationError] = useState<string | null>(null);
   const [testCategories, setTestCategories] = useState<TestCategory[]>([
     {
       id: 'initialization',
@@ -130,43 +131,49 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
 
   const runTests = async () => {
     setIsRunning(true);
+    setCompilationError(null);
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Step 1: Compile the code using the backend server
+      const compileResponse = await fetch('http://localhost:3000/api/compile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code: contractCode }),
+      });
+
+      const compileData = await compileResponse.json();
       
-      const enabledCategories = testCategories.filter(cat => cat.enabled);
-      const results: TestSuite[] = [];
-
-      if (enabledCategories.some(cat => cat.id === 'initialization')) {
-        results.push({
-          name: 'Initialization Tests',
-          tests: [
-            {
-              name: 'test_hook_initialization',
-              status: 'success',
-              gasUsed: 45023,
-              message: 'Hook initializes correctly with provided parameters'
-            }
-          ]
-        });
+      if (!compileData.success) {
+        setCompilationError('Compilation failed: ' + (compileData.error || 'Unknown error'));
+        return;
       }
+      
+      // Step 2: Run tests with the backend server
+      const testResponse = await fetch('http://localhost:3000/api/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          code: contractCode, 
+          testCode: isCustomMode ? customTestCode : undefined
+        }),
+      });
 
-      if (enabledCategories.some(cat => cat.id === 'beforeSwap')) {
-        results.push({
-          name: 'BeforeSwap Hook Tests',
-          tests: [
-            {
-              name: 'test_before_swap_validation',
-              status: 'success',
-              gasUsed: 62145,
-              message: 'BeforeSwap hook validates parameters correctly'
-            }
-          ]
-        });
+      const testData = await testResponse.json();
+      
+      if (!testData.success) {
+        setCompilationError('Test execution failed: ' + (testData.error || 'Unknown error'));
+        return;
       }
-
-      setTestResults(results);
+      
+      // Use the test results returned from the backend
+      setTestResults(testData.results);
     } catch (error) {
       console.error('Test execution failed:', error);
+      setCompilationError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsRunning(false);
     }
@@ -297,6 +304,13 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
           </div>
         )}
       </div>
+
+      {compilationError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          <h4 className="font-medium mb-1">Error:</h4>
+          <pre className="text-sm whitespace-pre-wrap">{compilationError}</pre>
+        </div>
+      )}
 
       {testResults.length > 0 && (
         <div className="space-y-6">
