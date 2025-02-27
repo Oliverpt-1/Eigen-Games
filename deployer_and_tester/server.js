@@ -58,44 +58,17 @@ app.post('/api/compile-and-test', async (req, res) => {
     fs.mkdirSync(path.join(workDir, 'src'), { recursive: true });
     fs.mkdirSync(path.join(workDir, 'test'), { recursive: true });
     fs.mkdirSync(path.join(workDir, 'lib'), { recursive: true });
-    fs.mkdirSync(path.join(workDir, 'test', 'utils'), { recursive: true });
     
     // Write the contract code
     const contractPath = path.join(workDir, 'src', 'Contract.sol');
     console.log(`📝 Writing contract to: ${contractPath}`);
     fs.writeFileSync(contractPath, code);
     
-    // Also write the contract as Counter.sol for compatibility with tests
-    const counterPath = path.join(workDir, 'src', 'Counter.sol');
-    console.log(`📝 Writing contract to Counter.sol for compatibility: ${counterPath}`);
-    fs.writeFileSync(counterPath, code);
-    
-    // Create empty utility files that might be imported
-    const easyPosmPath = path.join(workDir, 'test', 'utils', 'EasyPosm.sol');
-    const fixturesPath = path.join(workDir, 'test', 'utils', 'Fixtures.sol');
-    
-    console.log(`📝 Creating placeholder utility files`);
-    fs.writeFileSync(easyPosmPath, `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
-
-contract EasyPosm {
-    // Placeholder for EasyPosm
-}
-`);
-    
-    fs.writeFileSync(fixturesPath, `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
-
-contract Fixtures {
-    // Placeholder for Fixtures
-}
-`);
-    
     // Write the test code
     const testPath = path.join(workDir, 'test', 'Contract.t.sol');
     console.log(`📝 Writing test to: ${testPath}`);
     fs.writeFileSync(testPath, testCode);
-    
+
     // Create a foundry.toml file with proper remappings
     const workDirConfig = path.join(workDir, 'foundry.toml');
     console.log(`📝 Creating foundry.toml in ${workDirConfig}`);
@@ -109,47 +82,67 @@ remappings = [
     "v4-core/=lib/v4-core/",
     "v4-periphery/=lib/v4-periphery/",
     "@uniswap/v4-core/=lib/v4-core/",
+    "@uniswap/v4-core/contracts/=lib/v4-core/src/",
     "@uniswap/v4-periphery/=lib/v4-periphery/",
+    "@uniswap/v4-periphery/contracts/=lib/v4-periphery/src/",
     "permit2/=lib/permit2/"
 ]
-solc = "0.8.24"
+# Allow auto-detection of solidity version from source files
+ignore_error = "InvalidSolcVersion"
 `;
     fs.writeFileSync(workDirConfig, foundryConfig);
     
-    // Run foundryup to ensure Foundry is installed and up to date
-    console.log('🔧 Running foundryup');
+    // Ensure Foundry is installed
+    console.log('🔧 Checking Foundry installation');
     try {
-      await execPromise('curl -L https://foundry.paradigm.xyz | bash');
-      // Skip the bashrc part since it might not exist on all systems
-      await execPromise('foundryup');
+      await execPromise('forge --version');
     } catch (foundryError) {
-      console.log('⚠️ Foundryup may have failed, but continuing anyway:', foundryError.message);
-      // Continue anyway as foundry might already be installed
+      console.log('⚠️ Foundry not found, installing...');
+      try {
+        await execPromise('curl -L https://foundry.paradigm.xyz | bash');
+        await execPromise('foundryup');
+      } catch (installError) {
+        console.error('❌ Failed to install Foundry:', installError.message);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Failed to install Foundry: ' + installError.message 
+        });
+      }
     }
     
-    // Clone Uniswap V4 repositories
-    console.log('📦 Cloning Uniswap V4 repositories');
+    // Clone necessary repositories
+    console.log('📦 Setting up dependencies');
     try {
       // Clone v4-core
-      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone https://github.com/Uniswap/v4-core.git`);
+      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone --depth 1 https://github.com/Uniswap/v4-core.git`);
       console.log('✅ Cloned v4-core repository');
       
-      // Clone v4-periphery if needed
-      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone https://github.com/Uniswap/v4-periphery.git`);
+      // Fix Solidity version in v4-core files
+      const v4CoreDir = path.join(workDir, 'lib', 'v4-core');
+      console.log('🔧 Fixing Solidity version in v4-core files');
+      fixSolidityVersionRecursively(v4CoreDir);
+      
+      // Clone v4-periphery (with depth=1 for faster cloning)
+      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone --depth 1 https://github.com/Uniswap/v4-periphery.git`);
       console.log('✅ Cloned v4-periphery repository');
       
-      // Clone permit2 if needed
-      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone https://github.com/Uniswap/permit2.git`);
+      // Clone permit2 (with depth=1 for faster cloning)
+      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone --depth 1 https://github.com/Uniswap/permit2.git`);
       console.log('✅ Cloned permit2 repository');
+      
+      // Create test utility files
+      console.log('📝 Creating test utility files');
+      createTestUtilityFiles(workDir);
+      
     } catch (cloneError) {
-      console.error('❌ Error cloning repositories:', cloneError.message);
+      console.error('❌ Error setting up dependencies:', cloneError.message);
       return res.status(500).json({ 
         success: false, 
-        error: 'Failed to clone repositories: ' + cloneError.message 
+        error: 'Failed to set up dependencies: ' + cloneError.message 
       });
     }
     
-    // Run forge install to get dependencies
+    // Install Foundry dependencies
     console.log('📚 Installing Foundry dependencies');
     try {
       await execPromise(`cd ${workDir} && forge install --no-commit foundry-rs/forge-std`);
@@ -158,21 +151,18 @@ solc = "0.8.24"
       // Continue anyway as dependencies might already be installed
     }
     
-    // Run the tests using forge
+    // Run the tests
     console.log(`🧪 Running tests in: ${workDir}`);
     const { stdout, stderr } = await execPromise(`cd ${workDir} && forge test -vv`);
     
     console.log('🔍 Test execution completed');
-    console.log('stdout:', stdout);
     
     if (stderr) {
       console.log('stderr:', stderr);
     }
-    
-    // Parse test results
+      
+    // Parse and return test results
     const testResults = parseTestResults(stdout);
-    
-    // Return results to the frontend
     res.json({
       success: true,
       results: testResults,
@@ -190,30 +180,143 @@ solc = "0.8.24"
       success: false,
       error: error.message,
       details: {
-        workDir,
+        workDir: workDir || null,
         error: error.stack
       }
     });
   }
 });
 
-// Placeholder endpoint for compile and deploy
-app.post('/api/compile-and-deploy', (req, res) => {
-  console.log('📝 Received compile and deploy request');
-  const { code } = req.body;
+// Function to create test utility files
+function createTestUtilityFiles(workDir) {
+  // Create test/utils directory
+  const testUtilsDir = path.join(workDir, 'test', 'utils');
+  fs.mkdirSync(testUtilsDir, { recursive: true });
   
-  if (!code) {
-    console.error('❌ No contract code provided');
-    return res.status(400).json({ error: 'No contract code provided' });
+  // Create HookMiner.sol file
+  const hookMinerPath = path.join(testUtilsDir, 'HookMiner.sol');
+  const hookMinerContent = `// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.19 <0.9.0;
+
+library HookMiner {
+    // Find an address with the specified flags
+    function find(
+        address deployer,
+        uint160 flags,
+        bytes memory creationCode,
+        bytes memory constructorArgs
+    ) internal pure returns (address hookAddress, bytes32 salt) {
+        // Concatenate the creation code and constructor arguments
+        bytes memory bytecode = abi.encodePacked(creationCode, constructorArgs);
+        
+        // Calculate the address prefix we're looking for
+        bytes memory addressPrefix = abi.encodePacked(
+            bytes1(0xFF),
+            deployer,
+            bytes32(0)
+        );
+        
+        // Iterate until we find a salt that gives us the desired flags
+        uint256 nonce = 0;
+        while (true) {
+            salt = bytes32(nonce);
+            bytes32 addressBytes = keccak256(abi.encodePacked(addressPrefix, salt, keccak256(bytecode)));
+            
+            // Check if the last 20 bytes of the address have the desired flags
+            if (uint160(uint256(addressBytes)) & flags == flags) {
+                hookAddress = address(uint160(uint256(addressBytes)));
+                break;
+            }
+            
+            nonce++;
+        }
+    }
+}`;
+  fs.writeFileSync(hookMinerPath, hookMinerContent);
+  console.log('✅ Created HookMiner.sol');
+
+  // Create MockERC20.sol file
+  const mockERC20Dir = path.join(testUtilsDir, 'mocks');
+  fs.mkdirSync(mockERC20Dir, { recursive: true });
+  const mockERC20Path = path.join(mockERC20Dir, 'MockERC20.sol');
+  const mockERC20Content = `// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.19 <0.9.0;
+
+contract MockERC20 {
+    string public name;
+    string public symbol;
+    uint8 public decimals;
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+    }
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+        totalSupply += amount;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}`;
+  fs.writeFileSync(mockERC20Path, mockERC20Content);
+  console.log('✅ Created MockERC20.sol');
+}
+
+// Function to recursively fix Solidity version in all .sol files
+function fixSolidityVersionRecursively(directory) {
+  const files = fs.readdirSync(directory);
+  
+  for (const file of files) {
+    const fullPath = path.join(directory, file);
+    const stat = fs.statSync(fullPath);
+    
+    if (stat.isDirectory()) {
+      // Recursively process subdirectories
+      fixSolidityVersionRecursively(fullPath);
+    } else if (file.endsWith('.sol')) {
+      // Fix Solidity version in .sol files
+      try {
+        let content = fs.readFileSync(fullPath, 'utf8');
+        const originalContent = content;
+        
+        // Replace exact version requirements with more flexible ones
+        content = content.replace(/pragma solidity =0\.8\.2[0-9];/g, 'pragma solidity >=0.8.19 <0.9.0;');
+        content = content.replace(/pragma solidity 0\.8\.2[0-9];/g, 'pragma solidity >=0.8.19 <0.9.0;');
+        content = content.replace(/pragma solidity =0\.8\.26;/g, 'pragma solidity >=0.8.19 <0.9.0;');
+        content = content.replace(/pragma solidity 0\.8\.26;/g, 'pragma solidity >=0.8.19 <0.9.0;');
+        
+        // Only write if content was changed
+        if (content !== originalContent) {
+          fs.writeFileSync(fullPath, content);
+          console.log(`✅ Fixed Solidity version in: ${fullPath}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error fixing Solidity version in ${fullPath}:`, error.message);
+      }
+    }
   }
-  
-  // TODO: Implement compile and deploy functionality
-  
-  res.json({
-    success: false,
-    message: 'Compile and deploy functionality not yet implemented'
-  });
-});
+}
 
 // Function to parse test results
 function parseTestResults(output) {

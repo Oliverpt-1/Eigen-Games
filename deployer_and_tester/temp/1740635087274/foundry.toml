@@ -1,0 +1,15 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "v4-core/=lib/v4-core/",
+    "v4-periphery/=lib/v4-periphery/",
+    "@uniswap/v4-core/=lib/v4-core/",
+    "@uniswap/v4-core/contracts/=lib/v4-core/src/",
+    "@uniswap/v4-periphery/=lib/v4-periphery/",
+    "@uniswap/v4-periphery/contracts/=lib/v4-periphery/src/",
+    "permit2/=lib/permit2/"
+]
+solc = "0.8.24"
