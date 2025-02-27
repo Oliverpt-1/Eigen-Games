@@ -4,6 +4,10 @@ out = "out"
 libs = ["lib"]
 remappings = [
     "@uniswap/v4-core/=lib/v4-core/",
-    "@uniswap/v4-periphery/=lib/v4-periphery/"
+    "@uniswap/v4-periphery/=lib/v4-periphery/",
+    "v4-core/=lib/v4-core/",
+    "v4-periphery/=lib/v4-periphery/",
+    "forge-std/=lib/forge-std/src/",
+    "@uniswap/v4-core/contracts/=lib/v4-core/src/"
 ]
 solc = "0.8.24" 
