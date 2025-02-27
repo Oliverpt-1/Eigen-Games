@@ -1,6 +1,6 @@
 "use strict";
 const app = require("./configs/app.config")
-const PORT = process.env.port || process.env.PORT || 4003
+const PORT = process.env.port || process.env.PORT || 4004
 const dalService = require("./src/dal.service");
 
 dalService.init();

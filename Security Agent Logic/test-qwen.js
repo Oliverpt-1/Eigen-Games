@@ -129,42 +129,12 @@ contract CustomHook is IHooks {
 }
 `;
 
-async function testQwenCoderAnalysis() {
-    console.log("Testing Qwen Coder for Solidity security analysis...");
-    
-    try {
-        console.log("Analyzing sample code with Qwen Coder...");
-        const result = await agentService.analyzeWithQwenCoder(sampleCode);
-        
-        console.log("\n=== Analysis Results ===");
-        console.log(`Is Vulnerable: ${result.is_vulnerable}`);
-        console.log(`Contains Malicious Code: ${result.contains_malicious_code}`);
-        console.log(`Overall Risk Level: ${result.overall_risk_level}`);
-        console.log(`Number of Vulnerabilities: ${result.vulnerabilities.length}`);
-        
-        console.log("\n=== Vulnerabilities ===");
-        result.vulnerabilities.forEach((vuln, index) => {
-            console.log(`\nVulnerability #${index + 1}: ${vuln.name}`);
-            console.log(`Risk Level: ${vuln.risk_level}`);
-            console.log(`Location: ${vuln.location}`);
-            console.log(`Description: ${vuln.description}`);
-            console.log(`Suggested Fix: ${vuln.suggested_fix}`);
-        });
-        
-        console.log("\n=== Recommendation ===");
-        console.log(result.recommendation);
-        
-    } catch (error) {
-        console.error("Test failed:", error.message);
-    }
-}
-
 async function testMaliciousCodeDetection() {
     console.log("\nTesting code detection...");
     
     try {
         console.log("Analyzing code with Qwen Coder...");
-        const result = await agentService.analyzeWithQwenCoder(maliciousCode);
+        const result = await agentService.analyzeSolidityCode(maliciousCode);
         
         console.log("\n=== Analysis Results ===");
         console.log(`Is Vulnerable: ${result.is_vulnerable}`);
@@ -200,25 +170,8 @@ async function testMaliciousCodeDetection() {
         console.error("Code test failed:", error.message);
     }
 }
-
-async function testDirectQuery() {
-    console.log("\nTesting direct query to Qwen Coder...");
-    
-    try {
-        const prompt = "What are the top 3 security best practices for Solidity smart contracts?";
-        const response = await agentService.testQwenCoderQuery(prompt);
-        
-        console.log("\n=== Direct Query Response ===");
-        console.log(response);
-        
-    } catch (error) {
-        console.error("Direct query test failed:", error.message);
-    }
-}
-
 // Run the testss
 async function runTests() {
-    await testQwenCoderAnalysis();
     await testMaliciousCodeDetection();
     console.log("\nTests completed.");
 }
