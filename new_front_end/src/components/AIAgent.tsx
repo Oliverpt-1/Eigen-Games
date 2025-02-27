@@ -6,7 +6,7 @@ interface Message {
   content: string;
 }
 
-export function AIAgent() {
+export function AIAgent({ contractCode }: { contractCode: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -18,21 +18,65 @@ export function AIAgent() {
     setIsLoading(true);
 
     try {
-      // Simulate scanning animation
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Make a real API call to the Execution Service
+      const response = await fetch('http://localhost:4003/task/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          taskDefinitionId: 0,
+          solidityCode: contractCode
+        }),
+      });
+
+      const data = await response.json();
+      
+      // Format the response for display
+      const analysis = data.data.full_analysis;
+      let message = `I've completed the security scan of your contract. Here are my findings:\n\n`;
+      
+      if (analysis.is_vulnerable) {
+        message += `⚠️ This contract is vulnerable with a ${analysis.overall_risk_level} risk level.\n\n`;
+      } else {
+        message += `✅ No vulnerabilities detected.\n\n`;
+      }
+      
+      if (analysis.vulnerabilities && analysis.vulnerabilities.length > 0) {
+        message += `Vulnerabilities found:\n`;
+        analysis.vulnerabilities.forEach((vuln: any, index: number) => {
+          message += `${index + 1}. ${vuln.name} (${vuln.risk_level}): ${vuln.description}\n`;
+          if (vuln.suggested_fix) {
+            message += `   Suggestion: ${vuln.suggested_fix}\n`;
+          }
+        });
+        message += `\n`;
+      }
+      
+      if (analysis.malicious_patterns && analysis.malicious_patterns.length > 0) {
+        message += `⛔ Malicious patterns detected:\n`;
+        analysis.malicious_patterns.forEach((pattern: any, index: number) => {
+          message += `${index + 1}. ${pattern.name} (${pattern.risk_level}): ${pattern.description}\n`;
+        });
+        message += `\n`;
+      }
+      
+      message += `Recommendation: ${analysis.recommendation}`;
       
       setMessages([
         {
           role: 'assistant',
-          content: "I've completed the security scan of your contract. Here are my findings:\n\n" +
-            "1. No critical vulnerabilities detected\n" +
-            "2. Recommendation: Consider implementing reentrancy guards\n" +
-            "3. Gas optimization opportunities identified\n\n" +
-            "Would you like me to explain any of these points in detail?"
+          content: message
         }
       ]);
     } catch (error) {
       console.error('Failed to analyze contract:', error);
+      setMessages([
+        {
+          role: 'assistant',
+          content: "I encountered an error while analyzing your contract. Please try again."
+        }
+      ]);
     } finally {
       setIsLoading(false);
       setIsAnimating(false);

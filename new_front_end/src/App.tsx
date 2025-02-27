@@ -4,6 +4,7 @@ import { TestingSuite } from './components/TestingSuite';
 import { ConnectWallet } from './components/ConnectWallet';
 import { SolidityEditor } from './components/SolidityEditor';
 import { AIAgent } from './components/AIAgent';
+import { DeployContract } from './components/DeployContract';
 
 interface AuditResult {
   severity: 'high' | 'medium' | 'low' | 'info';
@@ -164,14 +165,10 @@ function App() {
 
           <TestingSuite contractCode={code} />
 
-          <AIAgent />
+          <AIAgent contractCode={code} />
 
           <div className="flex justify-end mt-8">
-            <button
-              className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl hover:from-pink-600 hover:to-purple-600 transition-all shadow-md hover:shadow-lg"
-            >
-              Deploy Contract
-            </button>
+            <DeployContract contractCode={code} />
           </div>
         </div>
       </div>
