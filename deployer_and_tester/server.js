@@ -1,4 +1,4 @@
-// Consolidated server for compiling, testing, and deploying Solidity contracts
+// Consolidated server for compiling and testing Solidity contracts
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -6,7 +6,8 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
-const deployContract = require('./deploy');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 // Create Express app
 const app = express();
@@ -28,73 +29,22 @@ if (!fs.existsSync(tempDir)) {
 
 // Simple endpoint to check if server is running
 app.get('/', (req, res) => {
-  res.json({ message: 'Solidity compiler, tester, and deployer service is running' });
+  res.json({ message: 'Solidity compiler and tester service is running' });
 });
 
-// Endpoint to compile Solidity code
-app.post('/api/compile', (req, res) => {
-  const { code } = req.body;
-  
-  if (!code) {
-    return res.status(400).json({ error: 'No code provided' });
-  }
-  
-  // Create a unique ID for this request
-  const id = Date.now().toString();
-  const workDir = path.join(tempDir, id);
-  fs.mkdirSync(workDir, { recursive: true });
-  fs.mkdirSync(path.join(workDir, 'src'), { recursive: true });
-  
-  // Write the code to a file
-  fs.writeFileSync(path.join(workDir, 'src', 'Contract.sol'), code);
-  
-  // Run the compilation container
-  exec(`docker run --rm -v ${workDir}:/app compiler-image`, (error, stdout, stderr) => {
-    if (error) {
-      return res.json({
-        success: false,
-        error: stderr || error.message
-      });
-    }
-    
-    try {
-      // Read the compiled artifact (contains bytecode and ABI)
-      const artifactPath = path.join(workDir, 'out', 'Contract.sol', 'Contract.json');
-      
-      if (fs.existsSync(artifactPath)) {
-        const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
-        
-        // Return compilation results with bytecode and ABI
-        res.json({
-          success: true,
-          message: 'Compilation successful',
-          output: stdout,
-          bytecode: artifact.bytecode,
-          abi: artifact.abi
-        });
-      } else {
-        res.json({
-          success: false,
-          error: 'Compilation failed: Artifact file not found'
-        });
-      }
-    } catch (readError) {
-      res.json({
-        success: false,
-        error: `Error reading compilation output: ${readError.message}`
-      });
-    }
-  });
-});
-
-// Endpoint to run tests
-app.post('/api/test', (req, res) => {
-  console.log('📝 Received test request');
+// Endpoint to compile and test Solidity code
+app.post('/api/compile-and-test', async (req, res) => {
+  console.log('📝 Received compile and test request');
   const { code, testCode } = req.body;
   
   if (!code) {
-    console.error('❌ No code provided');
-    return res.status(400).json({ error: 'No code provided' });
+    console.error('❌ No contract code provided');
+    return res.status(400).json({ error: 'No contract code provided' });
+  }
+  
+  if (!testCode) {
+    console.error('❌ No test code provided');
+    return res.status(400).json({ error: 'No test code provided' });
   }
   
   // Create a unique ID for this request
@@ -103,83 +53,135 @@ app.post('/api/test', (req, res) => {
   console.log(`📁 Creating work directory: ${workDir}`);
   
   try {
+    // Create necessary directories
     fs.mkdirSync(workDir, { recursive: true });
     fs.mkdirSync(path.join(workDir, 'src'), { recursive: true });
     fs.mkdirSync(path.join(workDir, 'test'), { recursive: true });
+    fs.mkdirSync(path.join(workDir, 'lib'), { recursive: true });
+    fs.mkdirSync(path.join(workDir, 'test', 'utils'), { recursive: true });
     
     // Write the contract code
     const contractPath = path.join(workDir, 'src', 'Contract.sol');
     console.log(`📝 Writing contract to: ${contractPath}`);
     fs.writeFileSync(contractPath, code);
-    console.log('Contract code:');
-    console.log(code);
     
-    // Write the test code or use a default test
-    const defaultTest = `// SPDX-License-Identifier: MIT
+    // Also write the contract as Counter.sol for compatibility with tests
+    const counterPath = path.join(workDir, 'src', 'Counter.sol');
+    console.log(`📝 Writing contract to Counter.sol for compatibility: ${counterPath}`);
+    fs.writeFileSync(counterPath, code);
+    
+    // Create empty utility files that might be imported
+    const easyPosmPath = path.join(workDir, 'test', 'utils', 'EasyPosm.sol');
+    const fixturesPath = path.join(workDir, 'test', 'utils', 'Fixtures.sol');
+    
+    console.log(`📝 Creating placeholder utility files`);
+    fs.writeFileSync(easyPosmPath, `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "forge-std/Test.sol";
-import "../src/Contract.sol";
-
-contract ContractTest is Test {
-    function testExample() public {
-        assertTrue(true);
-    }
-}`;
+contract EasyPosm {
+    // Placeholder for EasyPosm
+}
+`);
     
+    fs.writeFileSync(fixturesPath, `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+contract Fixtures {
+    // Placeholder for Fixtures
+}
+`);
+    
+    // Write the test code
     const testPath = path.join(workDir, 'test', 'Contract.t.sol');
     console.log(`📝 Writing test to: ${testPath}`);
-    fs.writeFileSync(testPath, testCode || defaultTest);
-    console.log('Test code:');
-    console.log(testCode || defaultTest);
-
-    // Copy foundry.toml to work directory
-    const foundryConfig = path.join(__dirname, 'foundry.toml');
+    fs.writeFileSync(testPath, testCode);
+    
+    // Create a foundry.toml file with proper remappings
     const workDirConfig = path.join(workDir, 'foundry.toml');
-    console.log(`📝 Copying foundry.toml from ${foundryConfig} to ${workDirConfig}`);
-    fs.copyFileSync(foundryConfig, workDirConfig);
+    console.log(`📝 Creating foundry.toml in ${workDirConfig}`);
     
-    // Run the testing container
-    const dockerCmd = `docker run --rm -v ${workDir}:/app tester-image`;
-    console.log(`🐳 Running Docker command: ${dockerCmd}`);
+    const foundryConfig = `[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "v4-core/=lib/v4-core/",
+    "v4-periphery/=lib/v4-periphery/",
+    "@uniswap/v4-core/=lib/v4-core/",
+    "@uniswap/v4-periphery/=lib/v4-periphery/",
+    "permit2/=lib/permit2/"
+]
+solc = "0.8.24"
+`;
+    fs.writeFileSync(workDirConfig, foundryConfig);
     
-    exec(dockerCmd, (error, stdout, stderr) => {
-      console.log('🔍 Docker execution completed');
-      console.log('stdout:', stdout);
+    // Run foundryup to ensure Foundry is installed and up to date
+    console.log('🔧 Running foundryup');
+    try {
+      await execPromise('curl -L https://foundry.paradigm.xyz | bash');
+      // Skip the bashrc part since it might not exist on all systems
+      await execPromise('foundryup');
+    } catch (foundryError) {
+      console.log('⚠️ Foundryup may have failed, but continuing anyway:', foundryError.message);
+      // Continue anyway as foundry might already be installed
+    }
+    
+    // Clone Uniswap V4 repositories
+    console.log('📦 Cloning Uniswap V4 repositories');
+    try {
+      // Clone v4-core
+      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone https://github.com/Uniswap/v4-core.git`);
+      console.log('✅ Cloned v4-core repository');
+      
+      // Clone v4-periphery if needed
+      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone https://github.com/Uniswap/v4-periphery.git`);
+      console.log('✅ Cloned v4-periphery repository');
+      
+      // Clone permit2 if needed
+      await execPromise(`cd ${path.join(workDir, 'lib')} && git clone https://github.com/Uniswap/permit2.git`);
+      console.log('✅ Cloned permit2 repository');
+    } catch (cloneError) {
+      console.error('❌ Error cloning repositories:', cloneError.message);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to clone repositories: ' + cloneError.message 
+      });
+    }
+    
+    // Run forge install to get dependencies
+    console.log('📚 Installing Foundry dependencies');
+    try {
+      await execPromise(`cd ${workDir} && forge install --no-commit foundry-rs/forge-std`);
+    } catch (installError) {
+      console.log('⚠️ Forge install warning:', installError.message);
+      // Continue anyway as dependencies might already be installed
+    }
+    
+    // Run the tests using forge
+    console.log(`🧪 Running tests in: ${workDir}`);
+    const { stdout, stderr } = await execPromise(`cd ${workDir} && forge test -vv`);
+    
+    console.log('🔍 Test execution completed');
+    console.log('stdout:', stdout);
+    
+    if (stderr) {
       console.log('stderr:', stderr);
-      
-      // Always try to parse test results, even if there's an error
-      // because Forge might output test failures but still exit with non-zero
-      const testResults = parseTestResults(stdout);
-      
-      // If we have test results, consider it a success even if there are failing tests
-      if (testResults.length > 0 && testResults[0].tests.length > 0) {
-        res.json({
-          success: true,
-          results: testResults,
-          details: {
-            stdout,
-            stderr,
-            workDir,
-            contractPath,
-            testPath
-          }
-        });
-      } else if (error) {
-        // Only consider it an error if we couldn't parse any test results
-        console.error('❌ Test execution failed:', error);
-        console.error('Error details:', stderr);
-        return res.json({
-          success: false,
-          error: stderr || error.message,
-          details: {
-            stdout,
-            stderr,
-            workDir,
-            contractPath,
-            testPath
-          }
-        });
+    }
+    
+    // Parse test results
+    const testResults = parseTestResults(stdout);
+    
+    // Return results to the frontend
+    res.json({
+      success: true,
+      results: testResults,
+      details: {
+        stdout,
+        stderr,
+        workDir,
+        contractPath,
+        testPath
       }
     });
   } catch (error) {
@@ -195,9 +197,27 @@ contract ContractTest is Test {
   }
 });
 
+// Placeholder endpoint for compile and deploy
+app.post('/api/compile-and-deploy', (req, res) => {
+  console.log('📝 Received compile and deploy request');
+  const { code } = req.body;
+  
+  if (!code) {
+    console.error('❌ No contract code provided');
+    return res.status(400).json({ error: 'No contract code provided' });
+  }
+  
+  // TODO: Implement compile and deploy functionality
+  
+  res.json({
+    success: false,
+    message: 'Compile and deploy functionality not yet implemented'
+  });
+});
+
 // Function to parse test results
 function parseTestResults(output) {
-  console.log('🔍 Parsing test output:', output);
+  console.log('🔍 Parsing test output');
   const lines = output.split('\n');
   const results = [];
   
@@ -264,72 +284,8 @@ function parseTestResults(output) {
   return results;
 }
 
-// Endpoint to deploy a contract
-app.post('/api/deploy', async (req, res) => {
-  const { abi, bytecode } = req.body;
-  if (!abi || !bytecode) {
-    return res.status(400).json({ error: 'Missing ABI or bytecode' });
-  }
-  
-  try {
-    const deployedAddress = await deployContract(abi, bytecode);
-    res.json({ success: true, address: deployedAddress });
-  } catch (error) {
-    console.error('Deployment error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Endpoint to compile and deploy in one step
-app.post('/api/compile-and-deploy', (req, res) => {
-  const { code } = req.body;
-  
-  if (!code) {
-    return res.status(400).json({ error: 'No code provided' });
-  }
-  
-  // Create temp directory for this request
-  const id = Date.now().toString();
-  const workDir = path.join(tempDir, id);
-  fs.mkdirSync(workDir, { recursive: true });
-  fs.mkdirSync(path.join(workDir, 'src'), { recursive: true });
-  
-  // Write the code to a file
-  fs.writeFileSync(path.join(workDir, 'src', 'Contract.sol'), code);
-  
-  // Run the compilation container
-  exec(`docker run --rm -v ${workDir}:/app compiler-image`, async (error, stdout, stderr) => {
-    if (error) {
-      return res.json({
-        success: false,
-        error: stderr || error.message
-      });
-    }
-    
-    try {
-      // Read the compiled artifact (contains bytecode and ABI)
-      const artifactPath = path.join(workDir, 'out', 'Contract.sol', 'Contract.json');
-      const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
-      
-      // Deploy using your existing deploy function
-      const deployedAddress = await deployContract(artifact.abi, artifact.bytecode);
-      
-      res.json({
-        success: true,
-        address: deployedAddress,
-        message: 'Contract compiled and deployed successfully'
-      });
-    } catch (deployError) {
-      res.json({
-        success: false,
-        error: deployError.message
-      });
-    }
-  });
-});
-
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Consolidated server running on port ${PORT}`);
+  console.log(`🚀 Solidity compiler and tester server running on port ${PORT}`);
 }); 

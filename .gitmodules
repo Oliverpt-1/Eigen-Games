@@ -4,3 +4,21 @@
 [submodule "foundry_tests/lib/forge-std"]
 	path = foundry_tests/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "deployer_and_tester/temp/1740614745562/lib/forge-std"]
+	path = deployer_and_tester/temp/1740614745562/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "deployer_and_tester/temp/1740614819421/lib/forge-std"]
+	path = deployer_and_tester/temp/1740614819421/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "deployer_and_tester/temp/1740615033992/lib/forge-std"]
+	path = deployer_and_tester/temp/1740615033992/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "deployer_and_tester/temp/1740615168622/lib/forge-std"]
+	path = deployer_and_tester/temp/1740615168622/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "deployer_and_tester/temp/1740615308035/lib/forge-std"]
+	path = deployer_and_tester/temp/1740615308035/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "deployer_and_tester/temp/1740615937249/lib/forge-std"]
+	path = deployer_and_tester/temp/1740615937249/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std

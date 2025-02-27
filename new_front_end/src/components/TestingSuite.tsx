@@ -31,24 +31,11 @@ const defaultFoundryTests = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
-import "../src/Hook.sol";
+import "../src/Contract.sol";
 
-contract HookTest is Test {
-    Hook hook;
-    IPoolManager manager;
-
-    function setUp() public {
-        // Setup pool manager and hook
-        manager = IPoolManager(address(0x0));  // Replace with actual pool manager
-        hook = new Hook(manager);
-    }
-
-    function testBeforeSwap() public {
-        // Test implementation
-    }
-
-    function testAfterSwap() public {
-        // Test implementation
+contract ContractTest is Test {
+    function testExample() public {
+        assertTrue(true);
     }
 }`;
 
@@ -153,42 +140,43 @@ export function TestingSuite({ contractCode }: { contractCode: string }) {
 
   const runTests = () => {
     setIsRunning(true);
+    setError(null);
     
-    // Simulate test execution with a timeout
-    setTimeout(() => {
-      try {
-        const results: TestSuite[] = [
-          {
-            name: 'Initialization Tests',
-            tests: [
-              {
-                name: 'test_hook_initialization',
-                status: 'success',
-                gasUsed: 45023,
-                message: 'Hook initializes correctly with provided parameters'
-              }
-            ]
-          },
-          {
-            name: 'BeforeSwap Hook Tests',
-            tests: [
-              {
-                name: 'test_before_swap_validation',
-                status: 'success',
-                gasUsed: 62145,
-                message: 'BeforeSwap hook validates parameters correctly'
-              }
-            ]
-          }
-        ];
-
-        setTestResults(results);
-      } catch (error) {
-        console.error('Test execution failed:', error);
-      } finally {
+    // Call the backend API to run tests
+    fetch('http://localhost:3000/api/compile-and-test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        code: contractCode,
+        testCode: testCode
+      })
+    })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(errorData => {
+            throw new Error(errorData.error || 'Failed to run tests');
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Test results:', data);
+        if (data.success) {
+          setTestResults(data.results);
+        } else {
+          setError(`Test execution failed: ${data.error}`);
+          console.error('Test execution details:', data.details);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to run tests:', error);
+        setError(`Failed to run tests: ${error.message}`);
+      })
+      .finally(() => {
         setIsRunning(false);
-      }
-    }, 2000);
+      });
   };
 
   const getStatusIcon = (status: TestResult['status']) => {
