@@ -5,20 +5,23 @@ UniGuard is a specialized developer tool designed to enhance the security and re
 
 ## Table of Contents
 1. [Getting Started](#getting-started)
-2. [Features](#features)
-3. [Test Generation](#test-generation)
-4. [Security Auditing](#security-auditing)
-5. [AVS Consensus](#avs-consensus)
-6. [Technical Architecture](#technical-architecture)
-7. [API Reference](#api-reference)
-8. [Troubleshooting](#troubleshooting)
-9. [FAQ](#faq)
+2. [Running the System](#running-the-system)
+3. [Features](#features)
+4. [Test Generation](#test-generation)
+5. [Security Auditing](#security-auditing)
+6. [AVS Consensus](#avs-consensus)
+7. [Technical Architecture](#technical-architecture)
+8. [API Reference](#api-reference)
+9. [Troubleshooting](#troubleshooting)
+10. [FAQ](#faq)
 
 ## Getting Started
 
 ### Installation
 ```bash
-# No installation required - UniGuard is a web-based tool
+# No installation required for the web interface - UniGuard is a web-based tool
+# For local development, clone the repository
+git clone https://github.com/Oliverpt-1/Eigen-Games.git
 ```
 
 ### Quick Start
@@ -26,6 +29,105 @@ UniGuard is a specialized developer tool designed to enhance the security and re
 2. Paste your Uniswap V4 hook contract code
 3. Select either "Generate Tests" or "Run Security Audit"
 4. Review the results and implement suggested improvements
+
+## Running the System
+
+If you want to run UniGuard locally or deploy your own instance, follow these instructions:
+
+### Prerequisites
+- Node.js v16+ and npm
+- Docker and Docker Compose
+- Othentic AVS credentials (for consensus validation)
+- Foundry (for smart contract testing)
+
+### Environment Setup
+.env files in both bug_huntoor and createTestAgent.  Fill out accordingly in order to run this locally.
+
+
+```
+
+NOTE ON AVS:
+1. To run the AVS locally, you will need to navigate to the othentic-avs docs and spin up a local instance (we didn't want to put our private key in the repo lol)
+
+# Backend Configuration
+PORT=3000
+NODE_ENV=development
+
+```
+
+### Running the Frontend
+
+```bash
+# Navigate to the frontend directory
+cd new_front_end
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+
+# The UI will be available at http://localhost:5173
+```
+
+### Running the Backend
+
+```bash
+# Navigate to the backend directory
+cd deployer_and_tester
+
+# Install dependencies
+npm install
+
+# Start the server
+npm start
+
+# The API will be available at http://localhost:3000
+```
+
+### Running the AI Agents
+
+UniGuard uses two separate AI agents: one for test generation and another for security auditing.
+
+#### Test Generation Agent
+
+```bash
+# Navigate to the agents directory
+cd createTestAgent 
+
+# Install dependencies
+npm install
+
+# Start the test generation agent
+npm start
+
+# The agent will be available at http://localhost:3001
+```
+
+#### Security Audit Agent
+
+The security audit agent will run through the AVS, so you have to write curl queries to the AVS to get the results. 
+
+
+### Verifying Installation
+
+To verify that all components are running correctly:
+
+```bash
+# Check frontend
+curl http://localhost:5173
+
+# Check backend
+curl http://localhost:3000/api/health
+
+# Check test generation agent
+curl http://localhost:3001/health
+
+# Check security audit agent
+curl http://localhost:3002/health
+```
+
+All endpoints should return a 200 OK response if the services are running properly.
 
 ## Features
 
