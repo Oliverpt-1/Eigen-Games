@@ -48,7 +48,7 @@ If you want to run UniGuard locally or deploy your own instance, follow these in
 
 NOTE ON AVS:
 1. To run the AVS locally, you will need to navigate to the othentic-avs docs and spin up a local instance (we didn't want to put our private key in the repo lol)
-
+2. Note that running docker compose up --build will suffice once the AVS is completed
 # Backend Configuration
 PORT=3000
 NODE_ENV=development
