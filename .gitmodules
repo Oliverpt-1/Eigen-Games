@@ -43,3 +43,6 @@
 [submodule "deployer_and_tester/workspaces/4741c72f-89c9-41ba-9735-8d67f5407790/lib/v4-core"]
 	path = deployer_and_tester/workspaces/4741c72f-89c9-41ba-9735-8d67f5407790/lib/v4-core
 	url = https://github.com/Uniswap/v4-core
+[submodule "deployer_and_tester/template-workspace/lib/forge-std"]
+	path = deployer_and_tester/template-workspace/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
