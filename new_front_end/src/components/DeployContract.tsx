@@ -64,6 +64,22 @@ export function DeployContract({ contractCode }: DeployContractProps) {
       const deploymentInfo = await compileCode();
       console.log("✅ Compilation successful:", deploymentInfo);
 
+      const abi = [
+        {
+          "inputs": [],
+          "name": "greet",
+          "outputs": [
+            {
+              "internalType": "string",
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ]
+
       // Ensure bytecode is properly formatted with 0x prefix
       console.log("Bytecode type:", typeof deploymentInfo.bytecode);
       console.log("Bytecode sample:", deploymentInfo.bytecode.substring(0, 50) + "...");
@@ -81,11 +97,10 @@ export function DeployContract({ contractCode }: DeployContractProps) {
 
       // ✅ Use wagmi's deployContract action with the shared config
       const hash = await deployContract(config, {
-        abi: deploymentInfo.abi,
-        args: [poolManagerAddress],
+        abi: abi,
+        args: [],
         bytecode: bytecode,
-        account: address,
-        gas: 30_000_000n
+        account: address
       });
       
       setTxHash(hash);
