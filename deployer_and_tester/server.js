@@ -16,17 +16,23 @@ app.use(express.json());
 const TEMP_DIR = path.join(__dirname, 'workspaces');
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
+// Path to the template workspace
+const TEMPLATE_DIR = path.join(__dirname, 'template-workspace/v4-template');
+
 app.post('/api/compile-and-test', async (req, res) => {
-    const { code, testCode } = req.body;
+  const { code, testCode } = req.body;
     if (!code || !testCode) return res.status(400).json({ error: 'Missing contract or test code' });
     
     const workspace = path.join(TEMP_DIR, crypto.randomUUID());
-    fs.mkdirSync(workspace, { recursive: true });
     
     try {
         console.log(`🛠 Creating workspace at ${workspace}`);
-        await execPromise(`cd "${workspace}" && forge init --force`);
-        await execPromise(`cd "${workspace}" && forge install Uniswap/v4-core Uniswap/v4-periphery`);
+        // Copy template instead of initializing new project
+        fs.cpSync(TEMPLATE_DIR, workspace, { recursive: true });
+        
+        // Remove template files
+        fs.rmSync(path.join(workspace, 'src', 'Counter.sol'), { force: true });
+        fs.rmSync(path.join(workspace, 'test', 'Counter.t.sol'), { force: true });
         
         const contractMatch = code.match(/contract\s+(\w+)/);
         const contractName = contractMatch ? contractMatch[1] : 'Contract';
@@ -41,12 +47,34 @@ app.post('/api/compile-and-test', async (req, res) => {
         const { stdout: testOut, stderr: testErr } = await execPromise(`cd "${workspace}" && forge test -vv`);
         if (testErr) throw new Error(testErr);
         
-        res.json({ success: true, compileOut, testOut });
-    } catch (error) {
+        // Simple parsing of test output
+        const tests = testOut.split('\n')
+          .filter(line => line.includes('[PASS]') || line.includes('[FAIL]'))
+          .map(line => {
+            const isPassing = line.includes('[PASS]');
+            const nameMatch = line.match(/\] (.+?)(?:\s+\[|$)/);
+            const gasMatch = line.match(/\[(\d+) gas\]/);
+            return {
+              name: nameMatch ? nameMatch[1].trim() : 'Test',
+              status: isPassing ? 'passed' : 'failed',
+              message: isPassing ? 'Test passed' : 'Test failed',
+              gasUsed: gasMatch ? parseInt(gasMatch[1]) : undefined
+            };
+          });
+        
+        res.json({ 
+          success: true, 
+          compileOut, 
+          testOut, 
+          results: tests.length ? [{ name: contractName, tests }] : [] 
+        });
+  } catch (error) {
         console.error(`❌ Error: ${error.message}`);
         res.status(500).json({ success: false, error: error.message });
     } finally {
-        fs.rmSync(workspace, { recursive: true, force: true });
+        // Comment out workspace deletion for debugging
+        // fs.rmSync(workspace, { recursive: true, force: true });
+        console.log(`🔍 Workspace preserved at: ${workspace}`);
     }
 });
 
