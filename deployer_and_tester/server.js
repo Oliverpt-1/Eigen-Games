@@ -30,12 +30,25 @@ app.post('/api/compile-and-test', async (req, res) => {
         // Copy template instead of initializing new project
         fs.cpSync(TEMPLATE_DIR, workspace, { recursive: true });
         
-        // Remove template files
-        fs.rmSync(path.join(workspace, 'src', 'Counter.sol'), { force: true });
-        fs.rmSync(path.join(workspace, 'test', 'Counter.t.sol'), { force: true });
+        // Remove template files - use absolute paths to ensure they're removed
+        const counterSolPath = path.join(workspace, 'src', 'Counter.sol');
+        const counterTestPath = path.join(workspace, 'test', 'Counter.t.sol');
+        
+        console.log(`Removing ${counterSolPath}`);
+        if (fs.existsSync(counterSolPath)) {
+          fs.unlinkSync(counterSolPath);
+        }
+        
+        console.log(`Removing ${counterTestPath}`);
+        if (fs.existsSync(counterTestPath)) {
+          fs.unlinkSync(counterTestPath);
+        }
         
         const contractMatch = code.match(/contract\s+(\w+)/);
+        console.log("Contract code first 100 chars:", code.substring(0, 100));
+        console.log("Contract match:", contractMatch);
         const contractName = contractMatch ? contractMatch[1] : 'Contract';
+        console.log("Extracted contract name:", contractName);
         fs.writeFileSync(path.join(workspace, 'src', `${contractName}.sol`), code);
         fs.writeFileSync(path.join(workspace, 'test', `${contractName}.t.sol`), testCode);
         
@@ -76,6 +89,83 @@ app.post('/api/compile-and-test', async (req, res) => {
         // fs.rmSync(workspace, { recursive: true, force: true });
         console.log(`🔍 Workspace preserved at: ${workspace}`);
     }
+});
+
+// New endpoint for compiling contracts for deployment
+app.post('/api/compile-for-deploy', async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'Missing contract code' });
+  
+  const workspace = path.join(TEMP_DIR, crypto.randomUUID());
+  
+  try {
+    console.log(`🛠 Creating deployment workspace at ${workspace}`);
+    fs.cpSync(TEMPLATE_DIR, workspace, { recursive: true });
+    
+    // Remove template files - use absolute paths to ensure they're removed
+    const counterSolPath = path.join(workspace, 'src', 'Counter.sol');
+    console.log(`Removing ${counterSolPath}`);
+    if (fs.existsSync(counterSolPath)) {
+      fs.unlinkSync(counterSolPath);
+    }
+    
+    const contractMatch = code.match(/contract\s+(\w+)/);
+    console.log("Contract code first 100 chars:", code.substring(0, 100));
+    console.log("Contract match:", contractMatch);
+    const contractName = contractMatch ? contractMatch[1] : 'Contract';
+    console.log("Extracted contract name:", contractName);
+    fs.writeFileSync(path.join(workspace, 'src', `${contractName}.sol`), code);
+    
+    console.log(`🔍 Compiling contract for deployment...`);
+    const { stdout: compileOut, stderr: compileErr } = await execPromise(`cd "${workspace}" && forge build`);
+    if (compileErr) throw new Error(compileErr);
+    
+    // Get the compiled bytecode and ABI
+    const outDir = path.join(workspace, 'out');
+    
+    // Look for the artifact file with the exact contract name
+    console.log(`Looking for artifact for ${contractName}`);
+    const artifactPath = path.join(outDir, `${contractName}.sol`, `${contractName}.json`);
+    
+    if (!fs.existsSync(artifactPath)) {
+      console.log(`Artifact not found at ${artifactPath}`);
+      console.log(`Available files in out directory:`, fs.readdirSync(outDir));
+      throw new Error(`Could not find compiled artifact for ${contractName}`);
+    }
+    
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+    console.log("artifact keys:", Object.keys(artifact));
+    console.log("bytecode exists?", !!artifact.bytecode);
+    console.log("deployedBytecode exists?", !!artifact.deployedBytecode);
+    
+    if (artifact.bytecode) {
+      console.log("bytecode type:", typeof artifact.bytecode);
+      if (typeof artifact.bytecode === 'object') {
+        console.log("bytecode keys:", Object.keys(artifact.bytecode));
+      }
+    }
+
+    // Log the actual bytecode value
+    console.log("bytecode.object sample:", artifact.bytecode.object.substring(0, 50) + "...");
+    
+    res.json({
+      success: true,
+      contractName,
+      abi: artifact.abi,
+      bytecode: artifact.bytecode.object,
+      compileOut
+    });
+
+    //console.log("res", res);
+
+  } catch (error) {
+    console.error(`❌ Error: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    // Comment out workspace deletion for debugging
+    // fs.rmSync(workspace, { recursive: true, force: true });
+    console.log(`🔍 Deployment workspace preserved at: ${workspace}`);
+  }
 });
 
 const PORT = process.env.PORT || 3000;
